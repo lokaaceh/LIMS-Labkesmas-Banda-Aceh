@@ -153,7 +153,26 @@ exports.createRegistration = async (req, res) => {
         if (!data.petugas_input) {
             data.petugas_input = user.fullname;
         }
+       // =================================================================
+        // 🔥 TAMBAHKAN NORMALISASI TIMEZONE UNTUK REGISTRASI AWAL
+        // =================================================================
+        
+        // 1. Perbaikan Tanggal Daftar
+        if (data.tgl_daftar) {
+            const jamDaftar = data.waktu_daftar ? `${data.waktu_daftar}:00` : "12:00:00";
+            data.tgl_daftar = new Date(`${data.tgl_daftar}T${jamDaftar}+07:00`);
+        }
 
+        // 2. Perbaikan Tanggal Lahir
+        if (data.tgl_lahir) {
+            data.tgl_lahir = new Date(`${data.tgl_lahir}T12:00:00+07:00`);
+        }
+        
+        // 3. Perbaikan Tanggal Pengambilan Sampel (jika ada)
+        if (data.tgl_pengambilan) {
+            data.tgl_pengambilan = new Date(`${data.tgl_pengambilan}T12:00:00+07:00`);
+        }
+        // =================================================================
         const result = await RegistrationModel.create(data);
 
         res.status(201).json({
