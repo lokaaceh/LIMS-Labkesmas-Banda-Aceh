@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import api from "../api/axios";
+import api from "../../../api/axios.js";
 import { toast } from "react-toastify";
-import { useAuth } from "../context/AuthContext";
-import { getDetailedAge } from "../utils/ageHelper";
-import kopMailImg from "../assets/kop_mail.png";
+import { useAuth } from "../../../context/AuthContext";
+import { getDetailedAge } from "../../../utils/ageHelper.js";
+import kopMailImg from "../../../assets/kop_mail.png";
 import QRCode from "react-qr-code";
 
 import {

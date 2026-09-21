@@ -1,6 +1,5 @@
-// pages/RegistrationForm.jsx
 import { useState, useEffect, useMemo } from "react";
-import api from "../api/axios";
+import api from "../../../api/axios.js";
 import { toast } from "react-toastify";
 import {
   Save,
@@ -555,7 +554,7 @@ export default function RegistrationForm({ onSuccess }) {
       setForm({
         ...form,
         dokter: "",
-        alamat_dokter: "", // <-- clear
+        alamat_dokter: "",
         no_rekam_medik: rmRes.data?.data?.next_rm || "",
         nama_pasien: "",
         nik: "",

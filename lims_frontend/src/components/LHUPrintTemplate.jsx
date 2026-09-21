@@ -83,8 +83,78 @@ const parseRefConfig = (rujukanString) => {
   }
 };
 
+// cek data abnormal
+const checkIsAbnormal = (nilai, config) => {
+  if (!nilai || !config) return false;
+
+  const valNum = parseFloat(String(nilai).replace(/,/g, "."));
+
+  // Jika rujukan terbaca sebagai format terstruktur (kuantitatif)
+  if (config.jenis === "kuantitatif") {
+    if (isNaN(valNum)) return false;
+    const target = config.kuantitatif?.umum;
+    if (target && target.min !== "" && target.max !== "") {
+      return valNum < parseFloat(target.min) || valNum > parseFloat(target.max);
+    }
+  }
+
+  // FALLBACK UNTUK TEKS / DATA LAMA (Membaca langsung dari string rujukan)
+  const rujukanStr = (config.teks_bebas || "").trim();
+  if (rujukanStr && !isNaN(valNum)) {
+    if (rujukanStr.startsWith("<")) {
+      const maxVal = parseFloat(rujukanStr.replace("<", "").trim());
+      return valNum >= maxVal;
+    }
+
+    if (rujukanStr.startsWith("≥") || rujukanStr.startsWith(">=")) {
+      const minVal = parseFloat(rujukanStr.replace(/[≥>=]/g, "").trim());
+      return valNum < minVal;
+    }
+
+    if (rujukanStr.includes("-")) {
+      const parts = rujukanStr.split("-").map((v) => parseFloat(v.trim()));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return valNum < parts[0] || valNum > parts[1];
+      }
+    }
+  }
+
+  return false;
+};
 // --- UI/UX RENDERER KHUSUS LHU ---
-const renderLhuReference = (config, satuan) => {
+const renderLhuReference = (test) => {
+  if (test.deskripsi_rujukan && test.deskripsi_rujukan.trim() !== "") {
+    const text = test.deskripsi_rujukan.trim();
+
+    // Jika ada pemisah |, maka split berdasarkan |
+    if (text.includes("|")) {
+      return (
+        <div className="text-left inline-block text-[11px] leading-relaxed">
+          {text.split("|").map((item, idx) => (
+            <div key={idx}>{item.trim()}</div>
+          ))}
+        </div>
+      );
+    }
+
+    const formattedText = text
+      .replace(
+        /(\s*)(Normal\s*:|Risiko\s*:|Tinggi\s*:|Borderline\s*:|Rendah\s*:)/gi,
+        "\n$2",
+      )
+      .trim();
+
+    return (
+      <div className="text-left inline-block text-[11px] leading-relaxed whitespace-pre-line">
+        {formattedText}
+      </div>
+    );
+  }
+
+  // Jika kosong, fallback ke parser konfigurasi JSON
+  const config = parseRefConfig(test.nilai_rujukan || test.range_normal);
+  const satuan = test.satuan;
+
   if (!config) return "-";
 
   const unitText =
@@ -94,10 +164,9 @@ const renderLhuReference = (config, satuan) => {
   if (config.jenis === "kualitatif") return config.kualitatif?.normal || "-";
 
   if (config.jenis === "kuantitatif") {
-    // RENDER MULTI KATEGORI
     if (config.is_multi && config.kuantitatif?.custom_refs?.length > 0) {
       return (
-        <div className="text-left inline-block text-[11px] leading-snug whitespace-nowrap">
+        <div className="text-left inline-block text-[11px] leading-relaxed">
           {config.kuantitatif.custom_refs.map((ref, idx) => (
             <div key={idx}>
               <span className="font-semibold">{ref.label}</span> :{" "}
@@ -107,7 +176,6 @@ const renderLhuReference = (config, satuan) => {
         </div>
       );
     } else {
-      // RENDER UMUM (SATU BARIS)
       const umum = config.kuantitatif?.umum;
       if (
         umum &&
@@ -153,6 +221,16 @@ export default function LHUPrintTemplate({ data }) {
   if (!data) return null;
 
   const extractTestCategory = () => {
+    // Jika data tests memiliki pemeriksaan_name dari backend, ambil nama induk yang paling dominan/pertama
+    if (data.tests && data.tests.length > 0) {
+      // Ambil pemeriksaan_name dari baris tes pertama (yang sudah membawa nama induk paket/kategori cerdas)
+      const firstParentName = data.tests[0].pemeriksaan_name;
+      if (firstParentName && firstParentName.trim() !== "") {
+        return firstParentName.toUpperCase();
+      }
+    }
+
+    // Fallback ke jenis_pemeriksaan jika tests kosong
     if (!data.jenis_pemeriksaan) return "PEMERIKSAAN LABORATORIUM";
     return data.jenis_pemeriksaan
       .replace(/\(\d+\)/g, "")
@@ -295,6 +373,13 @@ export default function LHUPrintTemplate({ data }) {
             </tr>
             <tr>
               <td className="align-top pb-1 whitespace-nowrap">
+                Kondisi Sampel
+              </td>
+              <td className="align-top pb-1 px-1">:</td>
+              <td className="align-top pb-1">{data.kondisi_sampel || "-"}</td>
+            </tr>
+            <tr>
+              <td className="align-top pb-1 whitespace-nowrap">
                 Kode Spesimen/Sampel
               </td>
               <td className="align-top pb-1 px-1">:</td>
@@ -361,6 +446,9 @@ export default function LHUPrintTemplate({ data }) {
                 test.nilai_rujukan || test.range_normal,
               );
 
+              // Fungsi cek hasil uji ini abnormal
+              const isAbnormal = checkIsAbnormal(test.nilai, config);
+
               return (
                 <tr
                   key={idx}
@@ -369,11 +457,20 @@ export default function LHUPrintTemplate({ data }) {
                   <td className="border border-black p-2">
                     {test.parameter_name}
                   </td>
+                  {/* Kolom Hasil dengan Tanda Bintang Merah jika Abnormal */}
                   <td className="border border-black p-2 text-center font-bold">
                     {test.nilai}
+                    {isAbnormal && (
+                      <span
+                        className="text-red-600 ml-1 font-extrabold"
+                        title="Hasil Abnormal"
+                      >
+                        *
+                      </span>
+                    )}
                   </td>
                   <td className="border border-black p-2 text-center align-middle">
-                    {renderLhuReference(config, test.satuan)}
+                    {renderLhuReference(test)}
                   </td>
                   <td className="border border-black p-2 text-center">
                     {test.satuan}
