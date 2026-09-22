@@ -1,6 +1,7 @@
 // pages/RegistrationEdit.jsx
 import { useState, useEffect, useMemo } from "react";
-import api from "../api/axios";
+import api from "../../../api/axios.js";
+import { useAuth } from "../../../context/AuthContext";
 import { toast } from "react-toastify";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
@@ -480,11 +481,12 @@ export default function RegistrationEdit() {
   };
 
   const handleAsalSampelChange = (e) => {
-    const val = e.target.value;    
+    const val = e.target.value;
     setForm((prev) => ({
       ...prev,
       asal_sampel: val,
-      status_pembayaran: val === "Mandiri" ? "berbayar" : prev.status_pembayaran,
+      status_pembayaran:
+        val === "Mandiri" ? "berbayar" : prev.status_pembayaran,
     }));
   };
 
@@ -715,7 +717,6 @@ export default function RegistrationEdit() {
                   name="nik"
                   value={form.nik}
                   type="text"
-                  required
                   inputMode="numeric"
                   onChange={(e) => {
                     const rawValue = e.target.value;

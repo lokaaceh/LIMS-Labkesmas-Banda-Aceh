@@ -19,13 +19,13 @@ import {
 
 // Components
 import Sidebar from "../components/Sidebar";
-import RegistrationForm from "./RegistrationsForm";
-import RegistrationList from "./RegistrationList";
-import RegistrationDetail from "./RegistrationDetail";
+import RegistrationForm from "../features/registration/components/RegistrationsForm";
+import RegistrationList from "../features/registration/components/RegistrationList";
+import RegistrationDetail from "../features/registration/components/RegistrationDetail";
 import UserManagement from "./UserManagement";
-import MasterPemeriksaan from "./MasterPemeriksaan";
+import MasterPemeriksaan from "../features/master-pemeriksaan/pages/MasterPemeriksaanPage";
 import LabQueue from "./LabQueue";
-import DataManagement from "./DataManagement";
+import DataManagement from "../features/data-management/pages/DataManagement";
 import ValidationQueue from "./ValidationQueue";
 import SamplerQueue from "./SamplerQueue";
 import FinanceDashboard from "./FinanceDashboard";

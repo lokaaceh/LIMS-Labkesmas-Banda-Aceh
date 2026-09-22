@@ -1,17 +1,19 @@
-// App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-import LandingPage from "./pages/LandingPage";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import RegistrationEdit from "./pages/RegistrationEdit";
+import LandingPage from "./features/landing/pages/LandingPage";
+import DataManagement from "./features/data-management/pages/DataManagement";
+import MasterPemeriksaan from "./features/master-pemeriksaan/pages/MasterPemeriksaanPage";
+import PublicTrackingPage from "./features/tracking/pages/PublicTrackingPage";
 
-// --- TAMBAHKAN IMPORT INI ---
-import PublicTracking from "./pages/PublicTracking"; 
-// ----------------------------
+import Login from "./features/auth/pages/login";
+import Dashboard from "./pages/Dashboard";
+
+// Import komponen & halaman dari folder fitur registrasi
+import RegistrationPage from "./features/registration/pages/RegistrationMainPage";
+import RegistrationEdit from "./features/registration/components/RegistrationEdit";
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, loading } = useAuth();
@@ -41,10 +43,8 @@ function App() {
           {/* Route Halaman Utama (Landing Page) */}
           <Route path="/" element={<LandingPage />} />
 
-          {/* --- TAMBAHKAN ROUTE CEK STATUS DI SINI --- */}
-          {/* Taruh di luar PublicRoute atau ProtectedRoute karena bisa diakses siapa saja */}
-          <Route path="/cek-status" element={<PublicTracking />} />
-          {/* ------------------------------------------ */}
+          {/* Route Public Tracking */}
+          <Route path="/cek-status" element={<PublicTrackingPage />} />
 
           {/* Route Login */}
           <Route
@@ -66,11 +66,42 @@ function App() {
             }
           />
 
+          <Route
+            path="/data-management"
+            element={
+              <ProtectedRoute>
+                <DataManagement />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Route Master Pemeriksaan Laboratorium */}
+          <Route
+            path="/master/pemeriksaan"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "lab", "manajemen"]}>
+                <MasterPemeriksaan />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Route Utama Registrasi (List & Add) */}
+          <Route
+            path="/registrations"
+            element={
+              <ProtectedRoute>
+                <RegistrationPage />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Route Edit Registration */}
           <Route
             path="/registrations/edit/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "input", "lab", "manajemen"]}>
+              <ProtectedRoute
+                allowedRoles={["admin", "input", "lab", "manajemen"]}
+              >
                 <RegistrationEdit />
               </ProtectedRoute>
             }

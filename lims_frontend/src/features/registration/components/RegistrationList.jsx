@@ -17,12 +17,12 @@ import {
   ChevronRight,
   Send,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-import api from "../api/axios";
+import { useAuth } from "../../../context/AuthContext";
+import api from "../../../api/axios.js";
 import { toast } from "react-toastify";
 import PropTypes from "prop-types";
 import { useNavigate } from "react-router-dom";
-import { getDetailedAge } from "../utils/ageHelper";
+import { getDetailedAge } from "../../../utils/ageHelper.js";
 
 export default function RegistrationList({
   data,
