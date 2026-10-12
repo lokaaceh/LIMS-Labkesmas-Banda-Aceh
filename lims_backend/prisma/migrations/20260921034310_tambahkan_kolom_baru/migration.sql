@@ -15,11 +15,12 @@ CREATE TABLE `master_pemeriksaan` (
     `kategori` VARCHAR(255) NOT NULL,
     `nama_pemeriksaan` VARCHAR(100) NOT NULL,
     `satuan` VARCHAR(50) NULL,
-    `nilai_rujukan` VARCHAR(100) NULL,
+    `nilai_rujukan` TEXT NULL,
     `metode` VARCHAR(50) NULL,
     `harga` DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
     `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
     `tipe` ENUM('tunggal', 'paket') NULL DEFAULT 'tunggal',
+    `deskripsi_rujukan` VARCHAR(255) NULL,
 
     INDEX `fk_mp_instalasi`(`instalasi_id`),
     PRIMARY KEY (`id`)
@@ -31,10 +32,11 @@ CREATE TABLE `master_pemeriksaan_parameters` (
     `master_pemeriksaan_id` INTEGER NOT NULL,
     `parameter_name` VARCHAR(255) NOT NULL,
     `satuan` VARCHAR(50) NULL,
-    `nilai_rujukan` VARCHAR(255) NULL,
+    `nilai_rujukan` TEXT NULL,
     `metode` VARCHAR(100) NULL,
     `urutan` INTEGER NULL DEFAULT 0,
     `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    `deskripsi_rujukan` VARCHAR(255) NULL,
 
     INDEX `master_pemeriksaan_id`(`master_pemeriksaan_id`),
     PRIMARY KEY (`id`)
@@ -56,7 +58,6 @@ CREATE TABLE `registration_details` (
 CREATE TABLE `registration_tests` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `registration_id` INTEGER NOT NULL,
-    `pemeriksaan_name` VARCHAR(255) NULL,
     `parameter_name` VARCHAR(100) NOT NULL,
     `nilai` VARCHAR(100) NULL,
     `satuan` VARCHAR(50) NULL,
@@ -68,9 +69,11 @@ CREATE TABLE `registration_tests` (
     `validated_at` TIMESTAMP(0) NULL,
     `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
     `metode` VARCHAR(50) NULL,
-    `nilai_rujukan` VARCHAR(100) NULL,
+    `nilai_rujukan` TEXT NULL,
     `validator_id` INTEGER NULL,
     `updated_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    `pemeriksaan_name` VARCHAR(255) NULL,
+    `deskripsi_rujukan` VARCHAR(255) NULL,
 
     INDEX `registration_id`(`registration_id`),
     INDEX `validated_by`(`validated_by`),
@@ -112,8 +115,15 @@ CREATE TABLE `registrations` (
     `status_pembayaran` ENUM('berbayar', 'gratis') NULL DEFAULT 'berbayar',
     `last_sample_seq` INTEGER NULL DEFAULT 0,
     `link_hasil` VARCHAR(255) NULL,
+    `dokter` VARCHAR(150) NULL,
     `no_rekam_medik` VARCHAR(50) NULL,
     `waktu_pengambilan` DATETIME(3) NULL,
+    `alamat_dokter` TEXT NULL,
+    `jenis_spesimen` VARCHAR(100) NULL,
+    `pemeriksa` VARCHAR(100) NULL,
+    `verified_at` TIMESTAMP(0) NULL,
+    `verifikator` VARCHAR(100) NULL,
+    `kondisi_sampel` VARCHAR(100) NULL,
 
     UNIQUE INDEX `idx_unique_no_sampel`(`no_sampel_lab`),
     PRIMARY KEY (`id`)
