@@ -141,12 +141,74 @@ CREATE TABLE `system_settings` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `kesling_registrations` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `no_reg` VARCHAR(50) NOT NULL,
+    `kategori` VARCHAR(50) NOT NULL,
+    `nama_pelanggan` VARCHAR(150) NOT NULL,
+    `alamat_pelanggan` TEXT NULL,
+    `no_telepon` VARCHAR(30) NULL,
+    `pengujian` VARCHAR(255) NULL,
+    `nomor_sampel` VARCHAR(100) NULL,
+    `kondisi_sampel` VARCHAR(100) NULL,
+    `asal_sampel` VARCHAR(100) NULL,
+    `kode_laboratorium` VARCHAR(100) NULL,
+    `tempat_analisa` VARCHAR(150) NULL,
+    `tgl_penerimaan` DATE NULL,
+    `tgl_analisa` DATE NULL,
+    `tgl_pelaporan` DATE NULL,
+    `is_sample_picked_up` BOOLEAN NOT NULL DEFAULT false,
+    `status` VARCHAR(50) NULL DEFAULT 'terdaftar',
+    `catatan` TEXT NULL,
+    `petugas_input` VARCHAR(50) NULL,
+    `last_sample_seq` INTEGER NULL DEFAULT 0,
+    `total_biaya` DECIMAL(15, 2) NULL DEFAULT 0.00,
+    `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    `updated_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+
+    UNIQUE INDEX `kesling_registrations_no_reg_key`(`no_reg`),
+    UNIQUE INDEX `kesling_registrations_nomor_sampel_key`(`nomor_sampel`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `kesling_details` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `kesling_registration_id` INTEGER NOT NULL,
+    `pemeriksaan_id` INTEGER NOT NULL,
+    `harga_saat_ini` DECIMAL(12, 2) NOT NULL,
+
+    INDEX `idx_kesling_reg_id`(`kesling_registration_id`),
+    INDEX `idx_kesling_pemeriksaan_id`(`pemeriksaan_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `kesling_tests` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `kesling_registration_id` INTEGER NOT NULL,
+    `pemeriksaan_name` VARCHAR(255) NULL,
+    `parameter_name` VARCHAR(255) NOT NULL,
+    `nilai` VARCHAR(255) NULL,
+    `satuan` VARCHAR(50) NULL,
+    `nilai_rujukan` TEXT NULL,
+    `deskripsi_rujukan` VARCHAR(255) NULL,
+    `metode` VARCHAR(100) NULL,
+    `status` VARCHAR(50) NULL DEFAULT 'pending',
+    `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    `updated_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+
+    INDEX `idx_kesling_tests_reg`(`kesling_registration_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `users` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `username` VARCHAR(50) NOT NULL,
     `fullname` VARCHAR(100) NULL,
     `password` VARCHAR(255) NOT NULL,
-    `role` ENUM('admin', 'input', 'sampler', 'lab', 'manajemen', 'kasir', 'validator') NULL DEFAULT 'input',
+    `role` ENUM('admin', 'input', 'sampler', 'lab', 'manajemen', 'kasir', 'validator', 'kepala_labkesmas') NULL DEFAULT 'input',
     `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
     `updated_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
     `instalasi_id` INTEGER NULL,
@@ -156,7 +218,7 @@ CREATE TABLE `users` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
-ALTER TABLE `master_pemeriksaan` ADD CONSTRAINT `fk_mp_instalasi` FOREIGN KEY (`instalasi_id`) REFERENCES `master_instalasi`(`id`) ON DELETE SET NULL ON UPDATE RESTRICT;
+ALTER TABLE `master_pemeriksaan` ADD CONSTRAINT `fk_mp_instalasi` FOREIGN KEY (`instalasi_id`) REFERENCES `master_instalasi`(`id`) ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE `master_pemeriksaan_parameters` ADD CONSTRAINT `master_pemeriksaan_parameters_ibfk_1` FOREIGN KEY (`master_pemeriksaan_id`) REFERENCES `master_pemeriksaan`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
@@ -172,6 +234,15 @@ ALTER TABLE `registration_tests` ADD CONSTRAINT `registration_tests_ibfk_1` FORE
 
 -- AddForeignKey
 ALTER TABLE `registration_tests` ADD CONSTRAINT `registration_tests_ibfk_2` FOREIGN KEY (`validated_by`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE RESTRICT;
+
+-- AddForeignKey
+ALTER TABLE `kesling_details` ADD CONSTRAINT `fk_kesling_details_reg` FOREIGN KEY (`kesling_registration_id`) REFERENCES `kesling_registrations`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+
+-- AddForeignKey
+ALTER TABLE `kesling_details` ADD CONSTRAINT `fk_kesling_details_master` FOREIGN KEY (`pemeriksaan_id`) REFERENCES `master_pemeriksaan`(`id`) ON DELETE RESTRICT ON UPDATE RESTRICT;
+
+-- AddForeignKey
+ALTER TABLE `kesling_tests` ADD CONSTRAINT `fk_kesling_tests_reg` FOREIGN KEY (`kesling_registration_id`) REFERENCES `kesling_registrations`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE `users` ADD CONSTRAINT `fk_user_instalasi` FOREIGN KEY (`instalasi_id`) REFERENCES `master_instalasi`(`id`) ON DELETE SET NULL ON UPDATE RESTRICT;

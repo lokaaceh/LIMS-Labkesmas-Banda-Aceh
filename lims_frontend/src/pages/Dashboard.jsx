@@ -30,6 +30,7 @@ import ValidationQueue from "./ValidationQueue";
 import SamplerQueue from "./SamplerQueue";
 import FinanceDashboard from "./FinanceDashboard";
 import SystemSettings from "../components/SystemSettings";
+import KeslingForm from "../features/registration/components/KeslingForm"; // <-- Import Form Kesling
 
 const StatCard = ({ title, value, icon: Icon, color, subtext }) => (
   <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between hover:shadow-md transition-shadow">
@@ -44,8 +45,6 @@ const StatCard = ({ title, value, icon: Icon, color, subtext }) => (
   </div>
 );
 
-// --- PERBAIKAN DI SINI (DashboardOverview) ---
-// 1. Terima props 'userRole'
 const DashboardOverview = ({
   data,
   stats,
@@ -114,9 +113,6 @@ const DashboardOverview = ({
         />
       </div>
 
-      {/* 2. LOGIC FIX: Sembunyikan List Pasien Terbaru jika role adalah 'lab'.
-         Role 'lab' hanya boleh melihat statistik di atas, lalu bekerja via menu 'Antrian Lab'.
-      */}
       {userRole !== "lab" && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex justify-between items-center mb-6">
@@ -189,8 +185,6 @@ export default function Dashboard() {
 
   const handleChangeView = useCallback(
     async (newView, item = null) => {
-      // --- TAMBAHAN KEAMANAN ---
-      // Mencegah user lab memaksa masuk ke view list/detail via console/bug
       if (
         user?.role === "lab" &&
         (newView === "list" || newView === "detail")
@@ -280,7 +274,9 @@ export default function Dashboard() {
                   userRole={user?.role}
                 />
               )}
-              {view === "create" && (
+
+              {/* --- PATOLOGI KLINIK (FORM LAMA) --- */}
+              {view === "create-klinis" && (
                 <RegistrationForm
                   onSuccess={() => {
                     fetchMainData();
@@ -288,6 +284,30 @@ export default function Dashboard() {
                   }}
                 />
               )}
+
+              {/* --- KESEHATAN LINGKUNGAN /  --- */}
+              {view === "create-kesling" && (
+                <KeslingForm
+                  onSuccess={() => {
+                    fetchMainData();
+                    setView("list");
+                  }}
+                />
+              )}
+
+              {/* --- MIKROBIOLOGI --- */}
+              {view === "create-mikrobiologi" && (
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-4xl mx-auto text-center">
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">
+                    Form Registrasi Mikrobiologi
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Modul formulir khusus mikrobiologi sedang dalam
+                    pengembangan.
+                  </p>
+                </div>
+              )}
+
               {view === "list" && (
                 <div className="space-y-6 animate-fade-in">
                   <div className="flex justify-between items-center">
@@ -296,7 +316,7 @@ export default function Dashboard() {
                     </h2>
                     {(user.role === "admin" || user.role === "input") && (
                       <button
-                        onClick={() => setView("create")}
+                        onClick={() => setView("create-klinis")}
                         className="bg-cyan-600 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
                       >
                         <PlusCircle size={18} /> Tambah Baru
