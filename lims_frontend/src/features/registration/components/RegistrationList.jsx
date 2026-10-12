@@ -8,7 +8,6 @@ import {
   FileText,
   Search,
   ArrowUpDown,
-  ChevronDown,
   Calendar,
   ListFilter,
   ArrowRight,
@@ -16,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Send,
+  Filter,
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import api from "../../../api/axios.js";
@@ -35,16 +35,31 @@ export default function RegistrationList({
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [instalasiList, setInstalasiList] = useState([]);
+  const [selectedInstalasiFilter, setSelectedInstalasiFilter] = useState("");
+
+  // --- AMBIL DATA MASTER INSTALASI ---
+  useEffect(() => {
+    const fetchInstalasi = async () => {
+      try {
+        const res = await api.get("/master/instalasi");
+        if (res.data.success) {
+          setInstalasiList(res.data.data);
+        }
+      } catch (error) {
+        console.error("Gagal memuat data instalasi", error);
+      }
+    };
+    fetchInstalasi();
+  }, []);
 
   // --- PAGINATION STATE ---
-  // Default limit 5 untuk dashboard, 25 untuk halaman list utama
   const [rowsLimit, setRowsLimit] = useState(isDashboard ? 5 : 25);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reset ke halaman 1 jika user melakukan pencarian atau mengubah limit baris
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, rowsLimit]);
+  }, [searchTerm, rowsLimit, selectedInstalasiFilter]);
 
   const formatDateSafe = (dateString) => {
     if (!dateString) return "-";
@@ -54,7 +69,6 @@ export default function RegistrationList({
         month: "short",
       });
     } catch (e) {
-      console.error(e);
       return "-";
     }
   };
@@ -74,11 +88,9 @@ export default function RegistrationList({
       toast.success("Registrasi berhasil dihapus");
       if (onRefresh) onRefresh();
     } catch (error) {
-      if (error.response?.status !== 200) {
-        toast.error(
-          error.response?.data?.message || "Gagal menghapus registrasi",
-        );
-      }
+      toast.error(
+        error.response?.data?.message || "Gagal menghapus registrasi",
+      );
     }
   };
 
@@ -92,37 +104,98 @@ export default function RegistrationList({
 
     let result = [...data];
 
-    // 1. Searching (Tetap jalan meski di dashboard agar data rapi jika dibutuhkan)
+    // 1. Filter Berdasarkan Instalasi yang dipilih dari tombol filter
+    if (selectedInstalasiFilter !== "") {
+      const selectedInstalasiObj = instalasiList.find(
+        (i) => i.id === selectedInstalasiFilter,
+      );
+      const targetKodeSampel =
+        selectedInstalasiObj?.kode_sampel?.toLowerCase() || "";
+      const targetNamaInstalasi =
+        selectedInstalasiObj?.nama_instalasi?.toLowerCase() || "";
+
+      result = result.filter((item) => {
+        // A. Cek langsung jika item memiliki instalasi_id
+        if (item.instalasi_id === selectedInstalasiFilter) return true;
+
+        // B. Cek melalui relasi registration_details -> master_pemeriksaan -> instalasi_id
+        if (
+          item.registration_details &&
+          Array.isArray(item.registration_details)
+        ) {
+          const matchDetail = item.registration_details.some(
+            (d) =>
+              d.instalasi_id === selectedInstalasiFilter ||
+              d.master_pemeriksaan?.instalasi_id === selectedInstalasiFilter,
+          );
+          if (matchDetail) return true;
+        }
+
+        // Cek untuk data Kesling berdasarkan kategori atau nomor sampel / jenis pemeriksaan
+        if (item.kategori && targetNamaInstalasi) {
+          const matchKategori = item.kategori
+            .toLowerCase()
+            .includes(targetNamaInstalasi.split(" ")[0]);
+          if (matchKategori) return true;
+        }
+
+        if (item.no_sampel_lab || item.nomor_sampel) {
+          const sampelStr = (
+            item.no_sampel_lab ||
+            item.nomor_sampel ||
+            ""
+          ).toLowerCase();
+          if (targetKodeSampel && sampelStr.includes(targetKodeSampel)) {
+            return true;
+          }
+        }
+
+        return false;
+      });
+    }
+
+    // Searching
     if (searchTerm && !isDashboard) {
       const lowerTerm = searchTerm.toLowerCase();
       result = result.filter(
         (item) =>
-          item.nama_pasien?.toLowerCase().includes(lowerTerm) ||
+          (item.nama_pasien || item.nama_pelanggan)
+            ?.toLowerCase()
+            .includes(lowerTerm) ||
           item.no_reg?.toLowerCase().includes(lowerTerm) ||
-          item.no_sampel_lab?.toLowerCase().includes(lowerTerm) ||
-          item.jenis_pemeriksaan?.toLowerCase().includes(lowerTerm),
+          (item.no_sampel_lab || item.nomor_sampel)
+            ?.toLowerCase()
+            .includes(lowerTerm) ||
+          (item.jenis_pemeriksaan || item.pengujian)
+            ?.toLowerCase()
+            .includes(lowerTerm),
       );
     }
 
-    // 2. Sorting
+    // Sorting
     result.sort((a, b) => {
-      const dateA = new Date(a?.created_at || a?.tgl_daftar).getTime();
-      const dateB = new Date(b?.created_at || b?.tgl_daftar).getTime();
+      const dateA = new Date(
+        a?.created_at || a?.tgl_daftar || a?.tgl_penerimaan,
+      ).getTime();
+      const dateB = new Date(
+        b?.created_at || b?.tgl_daftar || b?.tgl_penerimaan,
+      ).getTime();
 
       const timeA = Number.isNaN(dateA) ? 0 : dateA;
       const timeB = Number.isNaN(dateB) ? 0 : dateB;
 
-      if (sortOrder === "asc") {
-        return timeA - timeB;
-      } else {
-        return timeB - timeA;
-      }
+      return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
     });
 
-    // NOTE: Hapus return result.slice() di sini. Pemotongan dilakukan oleh Pagination Logic di bawah.
     return result;
-  }, [data, searchTerm, sortOrder, isDashboard]);
-
+  }, [
+    data,
+    searchTerm,
+    sortOrder,
+    selectedInstalasiFilter,
+    instalasiList,
+    isDashboard,
+  ]);
   // --- LOGIC: PAGINATION ---
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * rowsLimit;
@@ -145,7 +218,7 @@ export default function RegistrationList({
       <span
         className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wide border ${style}`}
       >
-        {status.replace("_", " ")}
+        {status ? status.replace("_", " ") : "TERDAFTAR"}
       </span>
     );
   };
@@ -160,22 +233,6 @@ export default function RegistrationList({
       .toUpperCase();
   };
 
-  const handleDirectToLab = async (id, noReg) => {
-    if (
-      !confirm(
-        `Konfirmasi: Sampel fisik Rujukan untuk ${noReg} sudah diterima dan siap diteruskan langsung ke Lab?`,
-      )
-    )
-      return;
-    try {
-      await api.put(`/registrations/${id}/send-to-lab`);
-      toast.success(`Sampel rujukan ${noReg} diteruskan ke Laboratorium!`);
-      if (onRefresh) onRefresh();
-    } catch (error) {
-      toast.error("Gagal meneruskan sampel ke lab");
-    }
-  };
-
   const containerClass = isDashboard
     ? "overflow-hidden"
     : "bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden";
@@ -188,55 +245,86 @@ export default function RegistrationList({
           : "max-w-7xl mx-auto space-y-6 animate-fade-in p-2 md:p-0"
       }
     >
-      {/* --- HEADER SECTION (HANYA TAMPIL JIKA BUKAN DASHBOARD) --- */}
+      {/* --- HEADER SECTION --- */}
       {!isDashboard && (
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
-              <FileText size={28} />
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
+                <FileText size={28} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 tracking-tight">
+                  Data Registrasi
+                </h2>
+                <p className="text-gray-500 text-sm font-medium">
+                  Kelola data pendaftaran pasien dan status pemeriksaan.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-800 tracking-tight">
-                Data Registrasi
-              </h2>
-              <p className="text-gray-500 text-sm font-medium">
-                Kelola data pendaftaran pasien dan status pemeriksaan.
-              </p>
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="relative group w-full md:w-40">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <ArrowUpDown size={16} />
+                </div>
+                <select
+                  className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-semibold text-gray-600 appearance-none cursor-pointer hover:bg-gray-50 transition-all shadow-sm"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                >
+                  <option value="desc">Terbaru</option>
+                  <option value="asc">Terlama</option>
+                </select>
+              </div>
+
+              <div className="relative w-full md:w-64">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  placeholder="Cari Nama / No. Reg..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm shadow-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
-            <div className="relative group w-full md:w-40">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                <ArrowUpDown size={16} />
-              </div>
-              <select
-                className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-semibold text-gray-600 appearance-none cursor-pointer hover:bg-gray-50 transition-all shadow-sm"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
+          {/* --- TOMBOL FILTER INSTALASI --- */}
+          <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-gray-100 custom-scrollbar">
+            <Filter size={16} className="text-gray-400 shrink-0 mr-2" />
+            <button
+              onClick={() => setSelectedInstalasiFilter("")}
+              className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                selectedInstalasiFilter === ""
+                  ? "bg-cyan-50 border-cyan-200 text-cyan-700 shadow-sm"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              SEMUA INSTALASI
+            </button>
+            {instalasiList.map((inst) => (
+              <button
+                key={inst.id}
+                onClick={() => setSelectedInstalasiFilter(inst.id)}
+                className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium border flex items-center gap-2 transition-all ${
+                  selectedInstalasiFilter === inst.id
+                    ? "bg-cyan-50 border-cyan-200 text-cyan-700 shadow-sm"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
               >
-                <option value="desc">Terbaru</option>
-                <option value="asc">Terlama</option>
-              </select>
-              <ChevronDown
-                size={14}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              />
-            </div>
-
-            <div className="relative w-full md:w-64">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={18}
-              />
-              <input
-                type="text"
-                placeholder="Cari Nama / No. Reg..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm shadow-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+                {inst.kode_sampel && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-200 text-cyan-800">
+                    {inst.kode_sampel}
+                  </span>
+                )}
+                {inst.nama_instalasi.toUpperCase()}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -265,243 +353,134 @@ export default function RegistrationList({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {!data || data.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="py-12">
-                    <div className="flex flex-col items-center justify-center text-center">
-                      <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-                        <MoreHorizontal size={30} className="text-gray-300" />
-                      </div>
-                      <h3 className="text-gray-800 font-bold text-sm">
-                        Belum ada data
-                      </h3>
-                    </div>
-                  </td>
-                </tr>
-              ) : paginatedData.length === 0 ? (
+              {paginatedData.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="py-12">
                     <div className="flex flex-col items-center justify-center text-center">
                       <Search size={30} className="text-gray-300 mb-2" />
                       <p className="text-gray-400 text-sm">
-                        Tidak ada hasil untuk "{searchTerm}"
+                        Tidak ada data registrasi ditemukan.
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                // PASTIKAN MAP DARI paginatedData BUKAN processedData
-                paginatedData.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-blue-50/30 transition-colors group"
-                  >
-                    {/* ... (Kolom-kolom Table `td` tidak ada yang berubah, gunakan *render* aslimu di sini) ... */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-100 to-cyan-100 flex items-center justify-center text-blue-600 font-bold text-xs border border-blue-100 shrink-0">
-                          {getInitials(item.nama_pasien)}
-                        </div>
-                        <div>
-                          <div className="font-bold text-gray-900 leading-tight">
-                            {item.nama_pasien}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                            <span className="font-medium text-cyan-700">
-                              {/* Prioritaskan kalkulasi detail, jika gagal fallback ke data umur lama di DB */}
-                              {getDetailedAge(
-                                item.tgl_lahir,
-                                item.tgl_daftar,
-                              ) || (item.umur ? `${item.umur} Thn` : "-")}
-                            </span>
-                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                            <span>
-                              {item.jenis_kelamin === "L"
-                                ? "Laki-Laki"
-                                : "Perempuan"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+                paginatedData.map((item) => {
+                  const namaDisplay =
+                    item.nama_pasien || item.nama_pelanggan || "Tanpa Nama";
+                  const pemeriksaanDisplay =
+                    item.jenis_pemeriksaan || item.pengujian || "-";
+                  const noSampelDisplay =
+                    item.no_sampel_lab || item.nomor_sampel || "-";
 
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col items-start gap-1.5">
-                        <div className="flex items-center gap-2 flex-wrap">
+                  return (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-blue-50/30 transition-colors group"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center text-blue-600 font-bold text-xs border border-blue-100 shrink-0">
+                            {getInitials(namaDisplay)}
+                          </div>
+                          <div>
+                            <div className="font-bold text-gray-900 leading-tight">
+                              {namaDisplay}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                              <span className="font-medium text-cyan-700">
+                                {getDetailedAge(
+                                  item.tgl_lahir,
+                                  item.tgl_daftar,
+                                ) || (item.umur ? `${item.umur} Thn` : "-")}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col items-start gap-1.5">
                           <span className="font-mono text-xs font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
                             {item.no_reg}
                           </span>
-                          {!item.no_invoice && (
-                            <span
-                              className="flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 px-1.5 py-[2px] rounded text-[9px] font-extrabold tracking-wide cursor-help shadow-sm"
-                              title="Perhatian: Nomor Invoice belum diset / disimpan!"
-                            >
-                              <AlertCircle size={10} strokeWidth={2.5} /> Belum
-                              bayar
+                          <div className="text-[10px] text-gray-400 font-medium">
+                            No Sampel:{" "}
+                            <span className="text-gray-600 font-semibold">
+                              {noSampelDisplay}
                             </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-gray-400 font-medium flex items-center gap-1">
-                          No Sampel:{" "}
-                          <span className="text-gray-600 font-semibold">
-                            {item.no_sampel_lab || "-"}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <div
-                        className="max-w-[150px] truncate font-medium text-gray-800 text-sm"
-                        title={item.jenis_pemeriksaan}
-                      >
-                        {item.jenis_pemeriksaan}
-                      </div>
-                      {!isDashboard && (
-                        <>
-                          <div className="flex items-center gap-2 mt-1">
-                            {item.status_pembayaran === "gratis" ? (
-                              <span className="bg-green-100 text-green-700 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide border border-green-200">
-                                GRATIS
-                              </span>
-                            ) : (
-                              <div className="flex items-center gap-1 text-cyan-700 font-bold text-[11px]">
-                                <Wallet size={10} />
-                                {formatRupiah(item.total_biaya)}
-                              </div>
-                            )}
                           </div>
-                          <div className="flex items-center gap-1 mt-1 text-[10px] text-gray-400">
-                            <Calendar size={10} />
-                            {formatDateSafe(item.tgl_daftar)}
-                          </div>
-                        </>
-                      )}
-                    </td>
+                        </div>
+                      </td>
 
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col items-start gap-1.5">
-                        <StatusBadge status={item.status} />
-                        {!isDashboard && (
-                          <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1 px-1">
-                            <ArrowRight size={8} /> {item.asal_sampel}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center items-center gap-1">
-                        <button
-                          onClick={() => onViewDetail(item)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors tooltip"
-                          title="Lihat Detail"
+                      <td className="px-6 py-4">
+                        <div
+                          className="max-w-[180px] truncate font-medium text-gray-800 text-sm"
+                          title={pemeriksaanDisplay}
                         >
-                          <Eye size={18} />
-                        </button>
+                          {pemeriksaanDisplay}
+                        </div>
+                        <div className="flex items-center gap-1 text-cyan-700 font-bold text-[11px] mt-1">
+                          <Wallet size={10} />
+                          {formatRupiah(item.total_biaya)}
+                        </div>
+                      </td>
 
-                        {!isDashboard && (
-                          <>
-                            {/* LOGIC BYPASS RUJUKAN: Munculkan tombol Kirim ke Lab untuk Input/Kasir/Admin jika asal_sampel Rujukan */}
-                            {item.status === "terdaftar" &&
-                              item.asal_sampel === "Rujukan" &&
-                              ["admin", "input", "kasir"].includes(
-                                user?.role,
-                              ) && (
-                                <button
-                                  onClick={() =>
-                                    handleDirectToLab(item.id, item.no_reg)
-                                  }
-                                  className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
-                                  title="Bypass: Teruskan Langsung Ke Lab"
-                                >
-                                  <Send size={18} />
-                                </button>
-                              )}
+                      <td className="px-6 py-4">
+                        <StatusBadge status={item.status} />
+                      </td>
 
-                            {(user?.role === "admin" ||
-                              (user?.role === "input" &&
-                                item.status === "terdaftar")) && (
-                              <>
-                                <button
-                                  onClick={() => handleEdit(item.id)}
-                                  className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-xl transition-colors"
-                                  title="Edit Data"
-                                >
-                                  <Edit size={18} />
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleDelete(item.id, item.no_reg)
-                                  }
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                                  title={
-                                    user?.role === "admin"
-                                      ? "Hapus Permanen"
-                                      : "Hapus Registrasi"
-                                  }
-                                >
-                                  <Trash2 size={18} />
-                                </button>
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex justify-center items-center gap-1">
+                          {/* TOMBOL LIHAT DETAIL */}
+                          <button
+                            onClick={() => onViewDetail(item)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                            title="Lihat Detail"
+                          >
+                            <Eye size={18} />
+                          </button>
+
+                          {/* TOMBOL EDIT */}
+                          <button
+                            onClick={() => handleEdit(item.id)}
+                            className="p-2 text-amber-500 hover:bg-amber-50 rounded-xl transition-colors"
+                            title="Edit Registrasi"
+                          >
+                            <Edit size={18} />
+                          </button>
+
+                          {/* TOMBOL HAPUS */}
+                          <button
+                            onClick={() => handleDelete(item.id, item.no_reg)}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                            title="Hapus Registrasi"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
 
-        {/* --- DYNAMIC FOOTER INFO & PAGINATION --- */}
+        {/* --- PAGINATION FOOTER --- */}
         {processedData.length > 0 && (
-          <div className="bg-gray-50/50 px-6 py-4 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-bold text-gray-500">
-            {/* Left: Total & Limit Control */}
-            <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
-              <span className="whitespace-nowrap">
-                Total: {data ? data.length : 0} Data
-                {searchTerm &&
-                  !isDashboard &&
-                  ` (Difilter: ${processedData.length})`}
-              </span>
-
-              <div className="flex items-center gap-2 pl-4 border-l border-gray-200">
-                <span className="text-gray-400 hidden sm:inline">
-                  Tampilkan:
-                </span>
-                <div className="relative">
-                  <select
-                    value={rowsLimit}
-                    onChange={(e) => setRowsLimit(Number(e.target.value))}
-                    className="bg-white border border-gray-200 text-gray-700 py-1 pl-2 pr-6 rounded-lg appearance-none cursor-pointer focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value={5}>5</option>
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <ListFilter
-                    size={12}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Pagination Navigation */}
+          <div className="bg-gray-50/50 px-6 py-4 border-t border-gray-100 flex justify-between items-center text-xs font-bold text-gray-500">
+            <span>Total: {processedData.length} Data</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-50"
               >
                 <ChevronLeft size={14} />
               </button>
-              <span className="px-2">
+              <span>
                 Hal {currentPage} / {totalPages}
               </span>
               <button
@@ -509,7 +488,7 @@ export default function RegistrationList({
                   setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                 }
                 disabled={currentPage === totalPages}
-                className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-50"
               >
                 <ChevronRight size={14} />
               </button>

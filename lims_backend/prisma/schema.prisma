@@ -7,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Master Data & Master instalasi
 model master_instalasi {
   id                 Int                  @id @default(autoincrement())
   kode_instalasi     String               @db.VarChar(10)
@@ -28,9 +29,10 @@ model master_pemeriksaan {
   created_at                    DateTime                        @default(now()) @db.Timestamp(0)
   tipe                          master_pemeriksaan_tipe?        @default(tunggal)
   deskripsi_rujukan             String?                         @db.VarChar(255)
-  master_instalasi              master_instalasi?               @relation(fields: [instalasi_id], references: [id], onUpdate: Restrict, map: "fk_mp_instalasi")
+  master_instalasi              master_instalasi?               @relation(fields: [instalasi_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_mp_instalasi")
   master_pemeriksaan_parameters master_pemeriksaan_parameters[]
   registration_details          registration_details[]
+  kesling_details               kesling_details[]               // Relasi baru untuk Kesling ke Master Pemeriksaan
 
   @@index([instalasi_id], map: "fk_mp_instalasi")
 }
@@ -50,6 +52,7 @@ model master_pemeriksaan_parameters {
   @@index([master_pemeriksaan_id], map: "master_pemeriksaan_id")
 }
 
+// Instalasi Patologi Klinik
 model registration_details {
   id                 Int                @id @default(autoincrement())
   registration_id    Int
@@ -142,26 +145,81 @@ model system_settings {
   updated_at    DateTime @default(now()) @db.Timestamp(0)
 }
 
-model users {
-  id                 Int                  @id @default(autoincrement())
-  username           String               @db.VarChar(50)
-  fullname           String?              @db.VarChar(100)
-  password           String               @db.VarChar(255)
-  role               users_role?          @default(input)
-  created_at         DateTime             @default(now()) @db.Timestamp(0)
-  updated_at         DateTime             @default(now()) @db.Timestamp(0)
-  instalasi_id       Int?
-  registration_tests registration_tests[]
-  master_instalasi   master_instalasi?    @relation(fields: [instalasi_id], references: [id], onUpdate: Restrict, map: "fk_user_instalasi")
-
-  @@index([instalasi_id], map: "fk_user_instalasi")
-}
-
 enum registrations_jenis_kelamin {
   L
   P
 }
 
+// --- TABEL KESEHATAN LINGKUNGAN & VEKTOR (KESLING) 
+model kesling_registrations {
+  id                    Int       @id @default(autoincrement())
+  no_reg                String    @unique @db.VarChar(50)
+  kategori              String    @db.VarChar(50)  
+  nama_pelanggan        String    @db.VarChar(150)
+  alamat_pelanggan      String?   @db.Text
+  no_telepon            String?   @db.VarChar(30)
+  pengujian             String?   @db.VarChar(255)
+  nomor_sampel          String?   @unique @db.VarChar(100)
+  kondisi_sampel        String?   @db.VarChar(100)
+  asal_sampel           String?   @db.VarChar(100)
+  kode_laboratorium     String?   @db.VarChar(100)
+  tempat_analisa        String?   @db.VarChar(150)
+  tgl_penerimaan        DateTime? @db.Date
+  tgl_analisa           DateTime? @db.Date
+  tgl_pelaporan         DateTime? @db.Date
+  is_sample_picked_up   Boolean   @default(false)
+  status                String?   @default("terdaftar") @db.VarChar(50)
+  catatan               String?   @db.Text
+  petugas_input         String?   @db.VarChar(50)
+  last_sample_seq       Int?      @default(0)
+  total_biaya           Decimal?  @default(0.00) @db.Decimal(15, 2)
+  
+  created_at            DateTime  @default(now()) @db.Timestamp(0)
+  updated_at            DateTime  @default(now()) @db.Timestamp(0)
+
+  
+  kesling_details       kesling_details[]
+  kesling_tests         kesling_tests[]
+
+  @@map("kesling_registrations")
+}
+
+model kesling_details {
+  id                    Int                @id @default(autoincrement())
+  kesling_registration_id Int
+  pemeriksaan_id        Int
+  harga_saat_ini        Decimal            @db.Decimal(12, 2)
+  
+  kesling_registrations kesling_registrations @relation(fields: [kesling_registration_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_kesling_details_reg")
+  master_pemeriksaan    master_pemeriksaan    @relation(fields: [pemeriksaan_id], references: [id], onUpdate: Restrict, map: "fk_kesling_details_master")
+
+  @@index([kesling_registration_id], map: "idx_kesling_reg_id")
+  @@index([pemeriksaan_id], map: "idx_kesling_pemeriksaan_id")
+  @@map("kesling_details")
+}
+
+// Tabel Parameter Uji Kesling (Mirip registration_tests untuk Patologi Klinik)
+model kesling_tests {
+  id                    Int                   @id @default(autoincrement())
+  kesling_registration_id Int
+  pemeriksaan_name      String?               @db.VarChar(255)
+  parameter_name        String                @db.VarChar(255)
+  nilai                 String?               @db.VarChar(255)
+  satuan                String?               @db.VarChar(50)
+  nilai_rujukan         String?               @db.Text
+  deskripsi_rujukan     String?               @db.VarChar(255)
+  metode                String?               @db.VarChar(100)
+  status                String?               @default("pending") @db.VarChar(50)
+  created_at            DateTime              @default(now()) @db.Timestamp(0)
+  updated_at            DateTime              @default(now()) @db.Timestamp(0)
+
+  kesling_registrations kesling_registrations @relation(fields: [kesling_registration_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_kesling_tests_reg")
+
+  @@index([kesling_registration_id], map: "idx_kesling_tests_reg")
+  @@map("kesling_tests")
+}
+
+// enum
 enum users_role {
   admin
   input
@@ -170,6 +228,7 @@ enum users_role {
   manajemen
   kasir
   validator
+  kepala_labkesmas
 }
 
 enum registration_tests_status {
@@ -192,4 +251,20 @@ enum master_pemeriksaan_tipe {
 enum registrations_status_pembayaran {
   berbayar
   gratis
+}
+
+// user control
+model users {
+  id                 Int                  @id @default(autoincrement())
+  username           String               @db.VarChar(50)
+  fullname           String?              @db.VarChar(100)
+  password           String               @db.VarChar(255)
+  role               users_role?          @default(input)
+  created_at         DateTime             @default(now()) @db.Timestamp(0)
+  updated_at         DateTime             @default(now()) @db.Timestamp(0)
+  instalasi_id       Int?
+  registration_tests registration_tests[]
+  master_instalasi   master_instalasi?    @relation(fields: [instalasi_id], references: [id], onUpdate: Restrict, map: "fk_user_instalasi")
+
+  @@index([instalasi_id], map: "fk_user_instalasi")
 }

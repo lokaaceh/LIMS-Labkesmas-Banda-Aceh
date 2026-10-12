@@ -356,6 +356,7 @@ export default function UserManagement() {
                     Manajemen (Laporan View Only)
                   </option>
                   <option value="admin">Admin (Full Akses)</option>
+                  <option value="kepala_labkesmas">Kepala Labkesmas (View Only)</option>
                 </select>
               </div>
               {/* ------------------------------------------------------------------- */}

@@ -1,4 +1,3 @@
-// models/registrationModel.js
 const prisma = require("../config/prisma");
 const moment = require("moment");
 const MasterModel = require("./masterModel");
@@ -22,17 +21,99 @@ const RegistrationModel = {
   },
 
   async getAll() {
-    const rows = await prisma.registrations.findMany({
+    // Ambil data dari tabel klinis utama (registrations)
+    const clinicalRows = await prisma.registrations.findMany({
       include: {
         registration_tests: true,
+        registration_details: {
+          include: {
+            master_pemeriksaan: {
+              select: {
+                nama_pemeriksaan: true,
+                instalasi_id: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { created_at: "desc" },
     });
-    return rows.map((r) => ({
-      ...r,
-      total_biaya: Number(r.total_biaya),
-      tests: r.registration_tests || [],
-    }));
+
+    const formattedClinical = clinicalRows.map((r) => {
+      // Ambil instalasi_id dari detail pemeriksaan pertama jika ada
+      let derivedInstalasiId = null;
+      if (r.registration_details && r.registration_details.length > 0) {
+        derivedInstalasiId =
+          r.registration_details[0].master_pemeriksaan?.instalasi_id || null;
+      }
+
+      return {
+        ...r,
+        instalasi_id: r.instalasi_id || derivedInstalasiId,
+        total_biaya: Number(r.total_biaya || 0),
+        tests: r.registration_tests || [],
+      };
+    });
+
+    // Ambil data dari tabel kesling_registrations
+    const keslingRows = await prisma.kesling_registrations.findMany({
+      include: {
+        kesling_details: {
+          include: {
+            master_pemeriksaan: {
+              select: {
+                nama_pemeriksaan: true,
+                instalasi_id: true,
+              },
+            },
+          },
+        },
+        kesling_tests: true,
+      },
+      orderBy: { created_at: "desc" },
+    });
+
+    const formattedKesling = keslingRows.map((r) => {
+      // Ambil instalasi_id dari relasi master_pemeriksaan pada kesling_details
+      let derivedKeslingInstalasiId = null;
+      if (r.kesling_details && r.kesling_details.length > 0) {
+        derivedKeslingInstalasiId =
+          r.kesling_details[0].master_pemeriksaan?.instalasi_id || null;
+      }
+
+      return {
+        id: `kesling_${r.id}`,
+        original_id: r.id,
+        no_reg: r.no_reg,
+        kategori: r.kategori,
+        nama_pasien: r.nama_pelanggan,
+        nama_pelanggan: r.nama_pelanggan,
+        alamat: r.alamat_pelanggan,
+        no_kontak: r.no_telepon,
+        jenis_pemeriksaan:
+          r.pengujian || r.kategori.replace("_", " ").toUpperCase(),
+        no_sampel_lab: r.nomor_sampel,
+        nomor_sampel: r.nomor_sampel,
+        status: r.status,
+        total_biaya: Number(r.total_biaya || 0),
+        created_at: r.created_at,
+        tgl_daftar: r.created_at,
+        asal_sampel: r.asal_sampel,
+        instalasi_id: derivedKeslingInstalasiId,
+        items: r.kesling_tests || [],
+        registration_details: r.kesling_details,
+      };
+    });
+
+    // Gabungkan kedua sumber data
+    const combinedData = [...formattedClinical, ...formattedKesling];
+
+    // Urutkan berdasarkan waktu terbaru
+    combinedData.sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at),
+    );
+
+    return combinedData;
   },
 
   async getNextSampleSeq() {
